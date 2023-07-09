@@ -90,9 +90,15 @@
 #define REST 0
 
 #define START_BUTTON 30
+#define LINE_LED 32
+#define BUZZER 34
+#define INPUT 0
+#define OUTPUT 1
 
-int past = 0, time = 0, now = millis(), start = 0, flag = 1;
+int s_btn;
+int past = 0, time = 0, now = millis(), start = 2, flag = 1;
 int c_robot = 0, c_human = 0;
+unsigned long past_led = 0, time_led = 0, now_led = micros();
 int FND[12][12] = {{1, 0, 0, 0, 0, 0, 0}, 
                    {1, 1, 1, 1, 0, 0, 1},
                    {0, 1, 0, 0, 1, 0, 0},
@@ -102,6 +108,56 @@ int FND[12][12] = {{1, 0, 0, 0, 0, 0, 0},
                    {0, 0, 0, 0, 0, 1, 0},
                    {1, 0, 1, 1, 0, 0, 0}
                   };
+
+int start_melody[] = {
+  NOTE_E5, 4,  NOTE_B4,8,  NOTE_C5,8,  NOTE_D5,4,  NOTE_C5,8,  NOTE_B4,8,
+  NOTE_A4, 4,  NOTE_A4,8,  NOTE_C5,8,  NOTE_E5,4,  NOTE_D5,8,  NOTE_C5,8,
+  NOTE_B4, -4,  NOTE_C5,8,  NOTE_D5,4,  NOTE_E5,4,
+  NOTE_C5, 4,  NOTE_A4,4,  NOTE_A4,8,  NOTE_A4,4,  NOTE_B4,8,  NOTE_C5,8,
+
+  NOTE_D5, -4,  NOTE_F5,8,  NOTE_A5,4,  NOTE_G5,8,  NOTE_F5,8,
+  NOTE_E5, -4,  NOTE_C5,8,  NOTE_E5,4,  NOTE_D5,8,  NOTE_C5,8,
+  NOTE_B4, 4,  NOTE_B4,8,  NOTE_C5,8,  NOTE_D5,4,  NOTE_E5,4,
+  NOTE_C5, 4,  NOTE_A4,4,  NOTE_A4,4, REST, 4,
+
+  NOTE_E5, 4,  NOTE_B4,8,  NOTE_C5,8,  NOTE_D5,4,  NOTE_C5,8,  NOTE_B4,8,
+  NOTE_A4, 4,  NOTE_A4,8,  NOTE_C5,8,  NOTE_E5,4,  NOTE_D5,8,  NOTE_C5,8,
+  NOTE_B4, -4,  NOTE_C5,8,  NOTE_D5,4,  NOTE_E5,4,
+  NOTE_C5, 4,  NOTE_A4,4,  NOTE_A4,8,  NOTE_A4,4,  NOTE_B4,8,  NOTE_C5,8,
+
+  NOTE_D5, -4,  NOTE_F5,8,  NOTE_A5,4,  NOTE_G5,8,  NOTE_F5,8,
+  NOTE_E5, -4,  NOTE_C5,8,  NOTE_E5,4,  NOTE_D5,8,  NOTE_C5,8,
+  NOTE_B4, 4,  NOTE_B4,8,  NOTE_C5,8,  NOTE_D5,4,  NOTE_E5,4,
+  NOTE_C5, 4,  NOTE_A4,4,  NOTE_A4,4, REST, 4,
+  
+
+  NOTE_E5,2,  NOTE_C5,2,
+  NOTE_D5,2,   NOTE_B4,2,
+  NOTE_C5,2,   NOTE_A4,2,
+  NOTE_GS4,2,  NOTE_B4,4,  REST,8, 
+  NOTE_E5,2,   NOTE_C5,2,
+  NOTE_D5,2,   NOTE_B4,2,
+  NOTE_C5,4,   NOTE_E5,4,  NOTE_A5,2,
+  NOTE_GS5,2,
+};
+
+int end_melody[] = {
+  NOTE_B4, 16, NOTE_B5, 16, NOTE_FS5, 16, NOTE_DS5, 16, //1
+  NOTE_B5, 32, NOTE_FS5, -16, NOTE_DS5, 8, NOTE_C5, 16,
+  NOTE_C6, 16, NOTE_G6, 16, NOTE_E6, 16, NOTE_C6, 32, NOTE_G6, -16, NOTE_E6, 8,
+
+  NOTE_B4, 16,  NOTE_B5, 16,  NOTE_FS5, 16,   NOTE_DS5, 16,  NOTE_B5, 32,  //2
+  NOTE_FS5, -16, NOTE_DS5, 8,  NOTE_DS5, 32, NOTE_E5, 32,  NOTE_F5, 32,
+  NOTE_F5, 32,  NOTE_FS5, 32,  NOTE_G5, 32,  NOTE_G5, 32, NOTE_GS5, 32,  NOTE_A5, 16, NOTE_B5, 8
+};
+
+int s_notes=sizeof(start_melody)/sizeof(start_melody[0])/2; 
+int s_wholenote = (60000 * 4) / 144;
+int s_divider = 0, s_noteDuration = 0;
+
+int notes = sizeof(end_melody) / sizeof(end_melody[0]) / 2;
+int wholenote = (60000 * 4) / 105;
+int divider = 0, noteDuration = 0;
 
 /*
 시작
@@ -113,9 +169,18 @@ FND 0-0 출력
 테트리스 노래 출력
 */
 
+/*
+끝
+스타트 버튼 = 0
+SCORE FND 5초 간 출력
+라인 LED 3번 깜빡이기 -> 소등
+팩맨 노래 출력
+*/
+
 void setup(){
-    Serial.begin(9600);
     pinMode(START_BUTTON, INPUT);
+    pinMode(LINE_LED, OUTPUT);
+
     pinMode(2, INPUT);
     for(int i=3; i<=13; i++)
         pinMode(i, OUTPUT);
@@ -127,11 +192,16 @@ void setup(){
     for(int i=10; i<=12; i++)
       digitalWrite(i, 1);
 
-    int s_btn = digitalRead(START_BUTTON);
+    s_btn = digitalRead(START_BUTTON);
+}
 
+void loop(){
     //시작 스위치를 누르면!!
-    if(s_btn == 1)
+    if(s_btn == 1){
         start = 1;
+        c_human = 0;
+        c_robot = 0;
+    }
 
     if(start){
         if(now-past >= 180000){ //3분이 지나면
@@ -142,12 +212,32 @@ void setup(){
             start = 0; //start = 0이고
             goto end; //끝 지점으로 감
         }
-    }
-    //끝 지점
-    end:
-}
+        //라인 LED 3번 깜빡이기
+        for(int i=0; i<3; i++){
+            digitalWrite(LINE_LED, 1);
+            delay(200);
+            digitalWrite(LINE_LED, 0);
+            delay(200);
+        }
+        digitalWrite(LINE_LED, 1);
 
-void loop(){
+        //테트리스 bgm
+        for (int thisNote = 0; thisNote < s_notes * 2; thisNote = thisNote + 2) {
+            s_divider = start_melody[thisNote + 1];
+            if (s_divider > 0) {
+                s_noteDuration = (s_wholenote) / s_divider;
+            } 
+            else if (s_divider < 0) {
+            s_noteDuration = (s_wholenote) / abs(s_divider);
+            s_noteDuration *= 1.5; 
+            }
+            tone(BUZZER, start_melody[thisNote], s_noteDuration*0.9);
+            delay(s_noteDuration);
+            noTone(BUZZER);
+        }
+    }
+
+    //포토 리플렉터 신호 감지 -> 1씩 카운트
     if(digitalRead(2)==1){
         if(flag == 1){
             delay(1000);
@@ -165,4 +255,43 @@ void loop(){
     for(int i=0; i<=6; i++){
         digitalWrite(i+22, FND[c_human][i]);
     }
+
+    //끝 지점
+    end:
+    if(start == 0){
+        //팩맨 노래 출력
+        for (int thisNote = 0; thisNote < notes * 2; thisNote = thisNote + 2) {
+            divider = end_melody[thisNote + 1];
+            if (divider > 0) {
+            noteDuration = (wholenote) / divider;
+            } else if (divider < 0) {
+            noteDuration = (wholenote) / abs(divider);
+            }
+            tone(BUZZER, end_melody[thisNote], noteDuration * 0.9);
+            delay(noteDuration);
+            noTone(BUZZER);
+        }
+        //FND 출력
+        for(int i=0; i<=6; i++){
+            digitalWrite(i+3, FND[c_robot][i]);
+        }
+        for(int i=0; i<=6; i++){
+            digitalWrite(i+22, FND[c_human][i]);
+        }
+        for(int i=0; i<=6; i++){
+            if(now_led-past_led >= 5000000){
+                digitalWrite(i+3, 1);
+                digitalWrite(i+22, 1);
+                digitalWrite(13, 1);
+            }
+        }
+        //라인 LED 3번 깜빡이기
+        for(int i=0; i<3; i++){
+            digitalWrite(LINE_LED, 1);
+            delay(200);
+            digitalWrite(LINE_LED, 0);
+            delay(200);
+        }
+        digitalWrite(LINE_LED, 0);
+    } 
 }
