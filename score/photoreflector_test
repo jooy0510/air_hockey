@@ -1,0 +1,16 @@
+int led = 2; // LED와 연결된 핀번호
+int sensor = 3; // 포토 인터럽터 센서와 연결된 핀번호
+
+void setup(){
+  pinMode(led, OUTPUT);
+  pinMode(sensor, INPUT);
+}
+// LED를 출력모드로, 포토 인터럽터 센서를 입력 모드로 설정
+void loop(){
+  if(digitalRead(sensor) == HIGH){ // U자 홈 사이에 물체가 들어왓을 경우
+    digitalWrite(led, LOW); // LED 점등
+  }
+  else{
+    digitalWrite(led,HIGH); // 사이에 아무 것도 없으면 소등
+  }
+}
