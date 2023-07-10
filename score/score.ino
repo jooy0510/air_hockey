@@ -100,11 +100,11 @@
 #define NOTE_DS8 4978
 #define REST 0
 
-#define START_BUTTON 30
-#define LINE_LED 32
+#define START_BUTTON 32
+#define LINE_LED 30
 #define BUZZER 34
 
-int s_btn;
+int s_btn, s_flag = 1;
 int past = 0, time = 0, now = millis(), start = 0, flag[2] = {1, 1}, ok_end = 0;
 int c_robot = 0, c_human = 0;
 unsigned long past_led = 0, time_led = 0, now_led = micros();
@@ -117,6 +117,8 @@ int FND[12][12] = {{1, 0, 0, 0, 0, 0, 0},
                    {0, 0, 0, 0, 0, 1, 0},
                    {1, 0, 1, 1, 0, 0, 0}
                   };
+
+int s_song = 1, e_song = 1;
 
 int start_melody[] = {
   NOTE_E7, NOTE_E7, 0, NOTE_E7,
@@ -255,8 +257,10 @@ SCORE FND 5초 간 출력
 */
 
 void setup(){
-    pinMode(START_BUTTON, 0);
+    Serial.begin(19200);
+    pinMode(START_BUTTON, INPUT_PULLUP);
     pinMode(LINE_LED, 1);
+    pinMode(BUZZER, 1);
 
     pinMode(1, 0);
     pinMode(2, 0);
@@ -269,13 +273,11 @@ void setup(){
 
     for(int i=10; i<=12; i++)
       digitalWrite(i, 1);
-
-    s_btn = digitalRead(START_BUTTON);
 }
 
 void loop(){
     //시작 스위치를 누르면!!
-    if(s_btn == 1){
+    if(digitalRead(START_BUTTON) == 0){
         start = 1;
         ok_end = 1;
         c_human = 0;
@@ -301,15 +303,18 @@ void loop(){
         digitalWrite(LINE_LED, 1);
 
         //테트리스 bgm
-        int s_size = sizeof(start_melody) / sizeof(int);
-        for (int thisNote = 0; thisNote < s_size; thisNote++) {
-            int noteDuration = 1000 / tempo[thisNote];
+        if(s_song){
+          int s_size = sizeof(start_melody) / sizeof(int);
+          for (int thisNote = 0; thisNote < s_size; thisNote++) {
+              int noteDuration = 1000 / tempo[thisNote];
 
-            buzz(BUZZER, start_melody[thisNote], noteDuration);
-            int pauseBetweenNotes = noteDuration * 1.30;
-            delay(pauseBetweenNotes);
-            buzz(BUZZER, 0, noteDuration);
-        }
+              buzz(BUZZER, start_melody[thisNote], noteDuration);
+              int pauseBetweenNotes = noteDuration * 1.30;
+              delay(pauseBetweenNotes);
+              buzz(BUZZER, 0, noteDuration);
+            }
+            s_song = 0;
+          }
         }
 
         //포토 리플렉터 신호 감지 -> 1씩 카운트
@@ -357,7 +362,8 @@ void loop(){
 
         //끝 지점
         end:
-        if(start == 0 && ok_end == 1){
+        if(start == 0 && ok_end == 1 && e_song == 1){
+          if(c_human>=7 || c_robot>=7 || now-past >= 180000){
             //팩맨 노래 출력
             for (int thisNote = 0; thisNote < notes * 2; thisNote = thisNote + 2) {
                 divider = end_melody[thisNote + 1];
@@ -370,6 +376,7 @@ void loop(){
                 delay(noteDuration);
                 noTone(BUZZER);
             }
+            e_song = 0;
             //FND 출력
             for(int i=0; i<=6; i++){
                 digitalWrite(i+3, FND[c_robot][i]);
@@ -392,7 +399,8 @@ void loop(){
                 delay(200);
             }
             digitalWrite(LINE_LED, 0);
-        } 
+          } 
+        }
 }
 
 void buzz(int targetPin, long frequency, long length) {
